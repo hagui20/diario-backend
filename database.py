@@ -1,23 +1,38 @@
-from sqlalchemy import create_engine, Column, Integer, String, DateTime
-from sqlalchemy.ext.declarative import declarative_base
-from sqlalchemy.orm import sessionmaker
-from datetime import datetime
+import sqlite3
 
-DATABASE_URL = "sqlite:///./diario.db"
+DB_NAME = "diario.db"
 
-engine = create_engine(
-    DATABASE_URL, connect_args={"check_same_thread": False}
-)
+def create_table():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS entries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            text TEXT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+        )
+    """)
+    conn.commit()
+    conn.close()
 
-SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
-Base = declarative_base()
+def insert_entry(text):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("INSERT INTO entries (text) VALUES (?)", (text,))
+    conn.commit()
+    conn.close()
 
-class DiarioEntry(Base):
-    __tablename__ = "entries"
+def get_entries():
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("SELECT id, text, created_at FROM entries ORDER BY created_at DESC")
+    rows = c.fetchall()
+    conn.close()
+    return [{"id": row[0], "text": row[1], "created_at": row[2]} for row in rows]
 
-    id = Column(Integer, primary_key=True, index=True)
-    text = Column(String, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow)
-
-# Crear las tablas si no existen
-Base.metadata.create_all(bind=engine)
+def delete_entry(entry_id):
+    conn = sqlite3.connect(DB_NAME)
+    c = conn.cursor()
+    c.execute("DELETE FROM entries WHERE id = ?", (entry_id,))
+    conn.commit()
+    conn.close()
