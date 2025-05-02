@@ -1,3 +1,4 @@
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 from fastapi.middleware.cors import CORSMiddleware
@@ -5,6 +6,14 @@ from database import DiarioEntry, SessionLocal
 from datetime import datetime
 
 app = FastAPI()
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # ⚠️ o usa ["https://diario-frontend.vercel.app"] para más seguridad
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
 
 # Permitir conexión desde el frontend
 app.add_middleware(
