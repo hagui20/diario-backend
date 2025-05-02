@@ -1,0 +1,56 @@
+from fastapi import FastAPI
+from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
+from database import DiarioEntry, SessionLocal
+from datetime import datetime
+
+app = FastAPI()
+
+# Permitir conexión desde el frontend (localhost:5173)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:5173"],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+# Modelo de entrada recibido desde el frontend
+class Entry(BaseModel):
+    text: str
+
+# Endpoint para guardar una nueva entrada
+@app.post("/entry")
+def save_entry(entry: Entry):
+    db = SessionLocal()
+    new_entry = DiarioEntry(text=entry.text)
+    db.add(new_entry)
+    db.commit()
+    db.refresh(new_entry)
+    db.close()
+    return {
+        "message": "Entrada guardada.",
+        "entry": {
+            "id": new_entry.id,
+            "text": new_entry.text,
+            "created_at": new_entry.created_at
+        }
+    }
+
+# Endpoint para recuperar todas las entradas ordenadas por fecha
+@app.get("/entries")
+def get_entries():
+    db = SessionLocal()
+    entries = db.query(DiarioEntry).order_by(DiarioEntry.created_at.desc()).all()
+    db.close()
+    return [
+        {
+            "id": e.id,
+            "text": e.text,
+            "created_at": e.created_at
+        }
+        for e in entries
+    ]
+
+
+
