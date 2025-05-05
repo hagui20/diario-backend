@@ -15,6 +15,7 @@ def create_table():
     conn.commit()
     conn.close()
 
+
 def insert_entry(text):
     conn = sqlite3.connect(DB_NAME)
     c = conn.cursor()
