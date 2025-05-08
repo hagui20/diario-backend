@@ -1,6 +1,8 @@
+import os
 import sqlite3
 
-DB_NAME = "diario.db"
+DB_NAME = os.path.join(os.path.dirname(__file__), "diario.db")
+
 
 def create_table():
     conn = sqlite3.connect(DB_NAME)
