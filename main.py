@@ -1,7 +1,13 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from dotenv import load_dotenv
 import os
+import json
+import tempfile
+import zipfile
+import pyzipper
+
 from database import insert_entry, get_entries, delete_entry
 from supabase import create_client
 
@@ -50,7 +56,28 @@ def search_entries(q: str):
         if q.lower() in row["text"].lower() or q in row["created_at"]:
             results.append(row)
 
-    # Ordenar por fecha descendente
     results.sort(key=lambda x: x["created_at"], reverse=True)
-
     return results
+
+@app.get("/backup")
+def backup_entries():
+    """
+    Crea un archivo ZIP cifrado con las entradas en JSON.
+    La contraseña del ZIP es la misma que la de acceso al diario: 10528
+    """
+    response = supabase.table("entries").select("*").execute()
+    entries = response.data
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        json_path = os.path.join(tmpdir, "diario_backup.json")
+        zip_path = os.path.join(tmpdir, "diario_backup.zip")
+
+        with open(json_path, "w", encoding="utf-8") as f:
+            json.dump(entries, f, ensure_ascii=False, indent=2)
+
+        password = b"10528"
+        with pyzipper.AESZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+            zf.setpassword(password)
+            zf.write(json_path, arcname="diario_backup.json")  # ← esta línea es clave
+
+        return FileResponse(zip_path, filename="diario_backup.zip", media_type="application/zip")
