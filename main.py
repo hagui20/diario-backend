@@ -1,10 +1,10 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
 import os
 import json
-import tempfile
+import io
 import zipfile
 import pyzipper
 
@@ -19,10 +19,9 @@ supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
 
-# CORS (permite que el frontend se conecte)
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # puedes restringir a ["https://tu-app.vercel.app"]
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -45,10 +44,6 @@ def remove_entry(entry_id: int):
 
 @app.get("/entries/search")
 def search_entries(q: str):
-    """
-    Buscar entradas que contengan el texto `q` en el campo `text`
-    o entradas creadas en una fecha exacta (YYYY-MM-DD).
-    """
     response = supabase.table("entries").select("*").execute()
     results = []
 
@@ -61,24 +56,19 @@ def search_entries(q: str):
 
 @app.get("/backup")
 def backup_entries():
-    """
-    Crea un archivo ZIP cifrado con las entradas en JSON.
-    La contraseña del ZIP es la misma que la de acceso al diario: 10528
-    """
     response = supabase.table("entries").select("*").execute()
     entries = response.data
 
-    with tempfile.TemporaryDirectory() as tmpdir:
-        json_path = os.path.join(tmpdir, "diario_backup.json")
-        zip_path = os.path.join(tmpdir, "diario_backup.zip")
+    # Crear buffer en memoria
+    memory_zip = io.BytesIO()
+    password = b"10528"
 
-        # Guardar el JSON correctamente
-        with open(json_path, "w", encoding="utf-8") as f:
-            json.dump(entries, f, ensure_ascii=False, indent=2)
+    with pyzipper.AESZipFile(memory_zip, "w", compression=zipfile.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+        zf.setpassword(password)
+        json_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode("utf-8")
+        zf.writestr("diario_backup.json", json_bytes)
 
-        password = b"10528"
-        with pyzipper.AESZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
-            zf.setpassword(password)
-            zf.write(json_path, arcname="diario_backup.json")  # escribe el archivo entero
-
-        return FileResponse(zip_path, filename="diario_backup.zip", media_type="application/zip")
+    memory_zip.seek(0)
+    return StreamingResponse(memory_zip, media_type="application/zip", headers={
+        "Content-Disposition": "attachment; filename=diario_backup.zip"
+    })
