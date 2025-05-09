@@ -72,12 +72,13 @@ def backup_entries():
         json_path = os.path.join(tmpdir, "diario_backup.json")
         zip_path = os.path.join(tmpdir, "diario_backup.zip")
 
+        # Guardar el JSON correctamente
         with open(json_path, "w", encoding="utf-8") as f:
             json.dump(entries, f, ensure_ascii=False, indent=2)
 
         password = b"10528"
         with pyzipper.AESZipFile(zip_path, "w", compression=zipfile.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
             zf.setpassword(password)
-            zf.write(json_path, arcname="diario_backup.json")  # ← esta línea es clave
+            zf.write(json_path, arcname="diario_backup.json")  # escribe el archivo entero
 
         return FileResponse(zip_path, filename="diario_backup.zip", media_type="application/zip")
