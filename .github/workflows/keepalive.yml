@@ -1,0 +1,14 @@
+name: Keep Supabase Awake
+
+on:
+  schedule:
+    - cron: "0 8 * * *"
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call keepalive endpoint
+        run: |
+          curl -fsS https://diario-backend-tvg.onrender.com/keepalive
