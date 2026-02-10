@@ -1,4 +1,4 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from dotenv import load_dotenv
@@ -7,25 +7,37 @@ import json
 import io
 import zipfile
 import pyzipper
+from datetime import datetime
 
 from database import insert_entry, get_entries, delete_entry
 from supabase import create_client
 
+# --------------------------------------------------
+# Configuración
+# --------------------------------------------------
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+
+if not SUPABASE_URL or not SUPABASE_KEY:
+    raise RuntimeError("Supabase credentials not set")
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # OK para uso personal
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# --------------------------------------------------
+# Endpoints del diario
+# --------------------------------------------------
 
 @app.post("/entry")
 def create_entry(data: dict):
@@ -54,21 +66,69 @@ def search_entries(q: str):
     results.sort(key=lambda x: x["created_at"], reverse=True)
     return results
 
+# --------------------------------------------------
+# Backup cifrado
+# --------------------------------------------------
+
 @app.get("/backup")
 def backup_entries():
     response = supabase.table("entries").select("*").execute()
     entries = response.data
 
-    # Crear buffer en memoria
     memory_zip = io.BytesIO()
     password = b"10528"
 
-    with pyzipper.AESZipFile(memory_zip, "w", compression=zipfile.ZIP_DEFLATED, encryption=pyzipper.WZ_AES) as zf:
+    with pyzipper.AESZipFile(
+        memory_zip,
+        "w",
+        compression=zipfile.ZIP_DEFLATED,
+        encryption=pyzipper.WZ_AES,
+    ) as zf:
         zf.setpassword(password)
-        json_bytes = json.dumps(entries, ensure_ascii=False, indent=2).encode("utf-8")
+        json_bytes = json.dumps(
+            entries,
+            ensure_ascii=False,
+            indent=2
+        ).encode("utf-8")
         zf.writestr("diario_backup.json", json_bytes)
 
     memory_zip.seek(0)
-    return StreamingResponse(memory_zip, media_type="application/zip", headers={
-        "Content-Disposition": "attachment; filename=diario_backup.zip"
-    })
+
+    return StreamingResponse(
+        memory_zip,
+        media_type="application/zip",
+        headers={
+            "Content-Disposition": "attachment; filename=diario_backup.zip"
+        },
+    )
+
+# --------------------------------------------------
+# Health & Keepalive (NO afecta a la app)
+# --------------------------------------------------
+
+@app.get("/health")
+def health():
+    return {
+        "status": "ok",
+        "service": "diario-backend",
+        "ts": datetime.utcnow().isoformat(),
+    }
+
+@app.get("/keepalive")
+def keepalive():
+    """
+    Endpoint barato para evitar que Supabase entre en pausa.
+    No devuelve datos sensibles.
+    """
+    try:
+        resp = supabase.table("entries").select("id").limit(1).execute()
+        return {
+            "status": "ok",
+            "rows": len(resp.data),
+            "ts": datetime.utcnow().isoformat(),
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Supabase keepalive failed: {str(e)}"
+        )
