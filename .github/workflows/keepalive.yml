@@ -10,6 +10,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Call keepalive endpoint
-        run: |
-          curl -fsS https://diario-backend-tvg.onrender.com/entries
+  run: |
+    curl -fsS https://diario-backend-tvug.onrender.com/keepalive
+
 
