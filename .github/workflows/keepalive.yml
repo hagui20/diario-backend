@@ -11,4 +11,5 @@ jobs:
     steps:
       - name: Call keepalive endpoint
         run: |
-          curl -fsS https://diario-backend-tvg.onrender.com/keepalive
+          curl -fsS https://diario-backend-tvg.onrender.com/entries
+
