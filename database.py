@@ -5,7 +5,8 @@ import os
 load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv("SUPABASE_ANON_KEY")
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY")  # 🔥 CAMBIO CLAVE
+
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def insert_entry(text):
@@ -18,9 +19,8 @@ def get_entries():
 def delete_entry(entry_id):
     supabase.table("entries").delete().eq("id", entry_id).execute()
 
-def create_table():
-    pass  # Ya no se necesita con Supabase, la tabla existe en la nube
-    
 def update_entry(entry_id: int, text: str):
     supabase.table("entries").update({"text": text}).eq("id", entry_id).execute()
 
+def create_table():
+    pass
