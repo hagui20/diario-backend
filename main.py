@@ -12,7 +12,13 @@ import zipfile
 import pyzipper
 from datetime import datetime, timedelta, timezone
 
-from database import insert_entry, get_entries, delete_entry, update_entry
+from database import (
+    insert_entry,
+    get_entries,
+    delete_entry,
+    update_entry,
+    update_entry_context
+)
 from supabase import create_client
 
 # --------------------------------------------------
@@ -56,8 +62,15 @@ app.add_middleware(
 class LoginRequest(BaseModel):
     password: str
 
+class EntryCreateRequest(BaseModel):
+    text: str
+    context: str = "normal"
+
 class EntryUpdateRequest(BaseModel):
     text: str
+
+class EntryContextRequest(BaseModel):
+    context: str
 
 def create_access_token():
     now = datetime.now(timezone.utc)
@@ -82,9 +95,8 @@ def login(body: LoginRequest):
 # --------------------------------------------------
 
 @app.post("/entry")
-def create_entry_endpoint(data: dict, _=Depends(require_auth)):
-    text = data.get("text", "")
-    insert_entry(text)
+def create_entry_endpoint(body: EntryCreateRequest, _=Depends(require_auth)):
+    insert_entry(body.text, body.context)
     return {"message": "Entrada guardada"}
 
 @app.get("/entries")
@@ -93,8 +105,19 @@ def read_entries(_=Depends(require_auth)):
 
 @app.put("/entry/{entry_id}")
 def edit_entry(entry_id: int, body: EntryUpdateRequest, _=Depends(require_auth)):
-    update_entry(entry_id, body.text)
-    return {"message": "Entrada actualizada"}
+    response = update_entry(entry_id, body.text)
+    return {
+        "message": "Entrada actualizada",
+        "data": response.data
+    }
+
+@app.put("/entry/{entry_id}/context")
+def set_entry_context(entry_id: int, body: EntryContextRequest, _=Depends(require_auth)):
+    response = update_entry_context(entry_id, body.context)
+    return {
+        "message": "Contexto actualizado",
+        "data": response.data
+    }
 
 @app.delete("/entry/{entry_id}")
 def remove_entry(entry_id: int, _=Depends(require_auth)):
@@ -107,7 +130,14 @@ def search_entries(q: str, _=Depends(require_auth)):
     results = []
 
     for row in response.data:
-        if q.lower() in row["text"].lower() or q in row["created_at"]:
+        text_value = row.get("text", "")
+        created_at_value = row.get("created_at", "")
+        context_value = row.get("context", "")
+        if (
+            q.lower() in text_value.lower()
+            or q in created_at_value
+            or q.lower() in context_value.lower()
+        ):
             results.append(row)
 
     results.sort(key=lambda x: x["created_at"], reverse=True)
