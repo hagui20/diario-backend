@@ -20,6 +20,7 @@ from database import (
     update_entry_context
 )
 from supabase import create_client
+from openai import OpenAI
 
 # --------------------------------------------------
 # Configuración
@@ -44,6 +45,7 @@ ALGORITHM = "HS256"
 security = HTTPBearer()
 
 supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
 app = FastAPI()
 
@@ -71,6 +73,9 @@ class EntryUpdateRequest(BaseModel):
 
 class EntryContextRequest(BaseModel):
     context: str
+    
+class AIQuestionRequest(BaseModel):
+    question: str
 
 def create_access_token():
     now = datetime.now(timezone.utc)
@@ -111,6 +116,39 @@ def edit_entry(entry_id: int, body: EntryUpdateRequest, _=Depends(require_auth))
         "data": response.data
     }
 
+@app.post("/ai/ask")
+def ask_ai(body: AIQuestionRequest, _=Depends(require_auth)):
+    entries = get_entries()
+
+    entries_text = "\n\n".join([
+        f"{e['created_at']}: {e['text']}"
+        for e in entries
+    ])
+
+    prompt = f"""
+Estas son mis entradas de diario:
+
+{entries_text}
+
+Pregunta:
+{body.question}
+
+Responde en español.
+Sé claro, útil y basado solo en la información del diario.
+No inventes nada.
+"""
+
+    response = client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[
+            {"role": "user", "content": prompt}
+        ]
+    )
+
+    return {
+        "answer": response.choices[0].message.content
+    }
+    
 @app.put("/entry/{entry_id}/context")
 def set_entry_context(entry_id: int, body: EntryContextRequest, _=Depends(require_auth)):
     response = update_entry_context(entry_id, body.context)
