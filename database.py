@@ -20,4 +20,7 @@ def delete_entry(entry_id):
 
 def create_table():
     pass  # Ya no se necesita con Supabase, la tabla existe en la nube
+    
+def update_entry(entry_id: int, text: str):
+    supabase.table("entries").update({"text": text}).eq("id", entry_id).execute()
 

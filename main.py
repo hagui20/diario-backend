@@ -12,7 +12,7 @@ import zipfile
 import pyzipper
 from datetime import datetime, timedelta, timezone
 
-from database import insert_entry, get_entries, delete_entry
+from database import insert_entry, get_entries, delete_entry, update_entry
 from supabase import create_client
 
 # --------------------------------------------------
@@ -43,7 +43,7 @@ app = FastAPI()
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # OK para uso personal
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -55,6 +55,9 @@ app.add_middleware(
 
 class LoginRequest(BaseModel):
     password: str
+
+class EntryUpdateRequest(BaseModel):
+    text: str
 
 def create_access_token():
     now = datetime.now(timezone.utc)
@@ -87,6 +90,11 @@ def create_entry_endpoint(data: dict, _=Depends(require_auth)):
 @app.get("/entries")
 def read_entries(_=Depends(require_auth)):
     return get_entries()
+
+@app.put("/entry/{entry_id}")
+def edit_entry(entry_id: int, body: EntryUpdateRequest, _=Depends(require_auth)):
+    update_entry(entry_id, body.text)
+    return {"message": "Entrada actualizada"}
 
 @app.delete("/entry/{entry_id}")
 def remove_entry(entry_id: int, _=Depends(require_auth)):
