@@ -132,36 +132,69 @@ def edit_entry(entry_id: int, body: EntryUpdateRequest, _=Depends(require_auth))
 
 @app.post("/ai/ask")
 def ask_ai(body: AIQuestionRequest, _=Depends(require_auth)):
-    entries = get_entries()
+    try:
+        entries = get_entries()
+        body_logs = get_body_logs()
 
-    entries_text = "\n\n".join([
-        f"{e['created_at']}: {e['text']}"
-        for e in entries
-    ])
+        entries_text = "\n\n".join([
+            f"{e['created_at']} | contexto: {e.get('context', 'normal')} | texto: {e['text']}"
+            for e in entries
+        ]) if entries else "No hay entradas de diario."
 
-    prompt = f"""
-Estas son mis entradas de diario:
+        body_text = "\n\n".join([
+            (
+                f"Semana {log['week_date']} | "
+                f"peso: {log['weight']} kg | "
+                f"grasa: {log['body_fat']}% | "
+                f"musculo: {log['muscle_mass']} kg | "
+                f"sleep_score: {log['sleep_score']} | "
+                f"sleep_duration: {log['sleep_duration']} h | "
+                f"resting_hr: {log['resting_hr']} | "
+                f"intensity_minutes: {log['intensity_minutes']} | "
+                f"notes: {log.get('notes', '')}"
+            )
+            for log in body_logs
+        ]) if body_logs else "No hay registros corporales."
 
+        prompt = f"""
+Eres un asistente que analiza de forma útil y prudente datos personales.
+
+Tienes dos fuentes:
+1. Diario emocional
+2. Registros corporales semanales
+
+DIARIO:
 {entries_text}
 
-Pregunta:
+CUERPO:
+{body_text}
+
+PREGUNTA DEL USUARIO:
 {body.question}
 
-Responde en español.
-Sé claro, útil y basado solo en la información del diario.
-No inventes nada.
+Instrucciones:
+- Responde en español.
+- Usa tanto el diario como el cuerpo si es relevante.
+- Si no hay evidencia suficiente, dilo claramente.
+- No inventes datos ni conclusiones tajantes.
+- Señala patrones, relaciones o tendencias si parecen razonables.
+- Si procede, da recomendaciones prácticas sobre descanso, ejercicio, comida o enfoque personal.
+- Sé claro, útil y humano.
 """
 
-    response = client.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=[
-            {"role": "user", "content": prompt}
-        ]
-    )
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {"role": "user", "content": prompt}
+            ]
+        )
 
-    return {
-        "answer": response.choices[0].message.content
-    }
+        return {
+            "answer": response.choices[0].message.content
+        }
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
     
 @app.put("/entry/{entry_id}/context")
 def set_entry_context(entry_id: int, body: EntryContextRequest, _=Depends(require_auth)):
