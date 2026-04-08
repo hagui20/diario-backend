@@ -18,6 +18,9 @@ from database import (
     delete_entry,
     update_entry,
     update_entry_context
+    insert_body_log,
+    get_body_logs,
+    delete_body_log
 )
 from supabase import create_client
 from openai import OpenAI
@@ -76,6 +79,17 @@ class EntryContextRequest(BaseModel):
     
 class AIQuestionRequest(BaseModel):
     question: str
+    
+class BodyLogRequest(BaseModel):
+    week_date: str
+    weight: float
+    body_fat: float
+    muscle_mass: float
+    sleep_score: int
+    sleep_duration: float
+    resting_hr: int
+    intensity_minutes: int
+    notes: str = ""
 
 def create_access_token():
     now = datetime.now(timezone.utc)
@@ -180,6 +194,20 @@ def search_entries(q: str, _=Depends(require_auth)):
 
     results.sort(key=lambda x: x["created_at"], reverse=True)
     return results
+    
+@app.post("/body")
+def create_body_log(body: BodyLogRequest, _=Depends(require_auth)):
+    insert_body_log(body.dict())
+    return {"message": "Body log saved"}
+
+@app.get("/body")
+def read_body_logs(_=Depends(require_auth)):
+    return get_body_logs()
+
+@app.delete("/body/{log_id}")
+def remove_body_log(log_id: int, _=Depends(require_auth)):
+    delete_body_log(log_id)
+    return {"message": "Body log deleted"}
 
 # --------------------------------------------------
 # Backup cifrado (PROTEGIDO)
