@@ -17,7 +17,7 @@ from database import (
     get_entries,
     delete_entry,
     update_entry,
-    update_entry_context
+    update_entry_context,
     insert_body_log,
     get_body_logs,
     delete_body_log
